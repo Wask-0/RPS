@@ -1,0 +1,1046 @@
+import random
+import os
+import sys
+import sqlite3
+import re
+from PyQt5.QtGui import QPixmap, QPalette, QBrush
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, QRadioButton, QHBoxLayout, QMessageBox
+
+# Функция для подключения к базе данных SQLite и создания таблиц, если их нет
+def connect_db():
+    conn = sqlite3.connect('users.db')
+    cursor = conn.cursor()
+    # Создаем таблицу пользователей, если её нет
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            login TEXT NOT NULL,
+            password TEXT NOT NULL,
+            email TEXT NOT NULL,
+            gender TEXT NOT NULL
+        )
+    ''')
+    # Создаем таблицу статистики игр, если её нет
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS game_stats (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER UNIQUE,
+            wins INTEGER DEFAULT 0,
+            losses INTEGER DEFAULT 0,
+            ties INTEGER DEFAULT 0,
+            FOREIGN KEY (user_id) REFERENCES users (id)
+        )
+    ''')
+    conn.commit()
+    return conn, cursor
+
+# Основное окно приложения
+class MyApp(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle('start')
+        self.setGeometry(800, 100, 490, 872)
+        self.setFixedSize(490, 872)
+
+        # Устанавливаем фоновое изображение
+        pixmap = QPixmap('фон.jpg')
+        palette = QPalette()
+        palette.setBrush(QPalette.Window, QBrush(pixmap))
+        self.setPalette(palette)
+
+        self.button_area = QWidget(self)
+
+        # Создаем метку с изображением
+        label1 = QLabel(self)
+        label1.move(100,300)
+        label1.setFixedSize(300, 135)
+        label1.setStyleSheet("""
+            QLabel {
+                background-image: url('кмн.png');  
+            }
+        """)
+
+        # Создаем кнопку "НАЧАТЬ ИГРАТЬ"
+        button1 = QPushButton('НАЧАТЬ ИГРАТЬ', self)
+        button1.move(125, 600)
+        button1.resize(250, 100)
+        button1.clicked.connect(self.open_reg)
+        button1.clicked.connect(self.close)
+
+        # Устанавливаем стиль кнопки
+        button1.setStyleSheet("""
+            QPushButton {
+                background-image: url('фон 2.jpg');
+                background-repeat: no-repeat; 
+                border-radius: 10px;
+                background-position: center; 
+                font-size: 20px; 
+                font-weight: bold; 
+                color: black; 
+            }
+            QPushButton:hover {
+                background-color: #45a049; 
+                border: 2px solid #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3e8e41; /* Цвет фона при нажатии */
+                border: 2px solid #3e8e41;
+            }
+        """)
+
+        # Создаем кнопку "Выход"
+        exit_button = QPushButton(self)
+        exit_button.move(430, 20)
+        exit_button.resize(50, 50)
+        exit_button.clicked.connect(self.confirm_close)
+        exit_button.setStyleSheet("""
+        QPushButton {
+            background-image: url('закрыть.png');
+            border: none;
+            }
+        """)
+
+        self.show()
+
+    # Метод для открытия окна регистрации
+    def open_reg(self):
+        self.reg = Reg()
+        self.reg.show()
+
+    # Метод для подтверждения выхода из приложения
+    def confirm_close(self):
+        reply = QMessageBox.question(self, 'Подтверждение', 'Вы уверены, что хотите выйти?',
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            self.close_app()
+
+    # Метод для закрытия приложения
+    def close_app(self):
+        QApplication.quit()
+
+# Окно входа
+class Reg(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.initUI()
+
+    def initUI(self):
+        self.setGeometry(800, 100, 490, 872)
+        self.setFixedSize(490, 872)
+        self.setWindowTitle('вход')
+
+        # Устанавливаем фоновое изображение
+        pixmap = QPixmap('фон.jpg')
+        palette = QPalette()
+        palette.setBrush(QPalette.Window, QBrush(pixmap))
+        self.setPalette(palette)
+
+        self.button_area = QWidget(self)
+
+        # Создаем кнопки и поля ввода для входа
+        buttonback = QPushButton(self)
+        buttonreg = QPushButton('регистрация', self)
+        buttontrance = QPushButton('войти', self)
+
+        buttonreg.move(125, 700)
+        buttonreg.resize(250, 70)
+
+        label1 = QLabel('Введите логин', self)
+        label2 = QLabel('Введите пароль', self)
+
+        label1.move(155,30)
+        label1.setFixedSize(200, 50)
+        label1.setStyleSheet("""
+            QLabel {
+                background-color: #ffffff; 
+                border: 2px solid #4CAF50; 
+                font-size: 22px; 
+                color: black;
+                padding-left: 20px; 
+                padding-right: 20px; 
+            }
+        """)
+
+        label2.move(155,270)
+        label2.setFixedSize(200, 50)
+        label2.setStyleSheet("""
+            QLabel {
+                background-color: #ffffff; 
+                border: 2px solid #4CAF50; 
+                padding: 10px; 
+                font-size: 22px; 
+                color: black;
+                padding: 10px
+            }
+        """)
+
+        self.login_input = QLineEdit(self)
+        self.login_input.setPlaceholderText("")
+        self.login_input.setStyleSheet("font-size: 20px; padding: 5px;")
+        self.login_input.move(155, 95)
+        self.login_input.resize(200, 30)
+        self.login_input.setStyleSheet("""
+            QLineEdit {
+                background-image: url('Or.png')
+            }
+            """)
+
+        self.password_input = QLineEdit(self)
+        self.password_input.setPlaceholderText("")
+        self.password_input.setStyleSheet("font-size: 20px; padding: 5px;")
+        self.password_input.setEchoMode(QLineEdit.Password)
+        self.password_input.move(155, 335)
+        self.password_input.resize(200, 30)
+        self.password_input.setStyleSheet("""
+            QLineEdit {
+                background-image: url('Or.png')
+            }
+            """)
+
+        # Кнопка для показа/скрытия пароля
+        show_password_button = QPushButton(self)
+        show_password_button.setStyleSheet("font-size: 14px; padding: 5px;")
+        show_password_button.move(360, 335)
+        show_password_button.resize(34, 30)
+        show_password_button.clicked.connect(lambda: self.toggle_password_visibility(self.password_input))
+        show_password_button.setStyleSheet("""
+            QPushButton {
+                background-image: url('пароль.png');
+                border: none;
+            }
+            """)
+
+        # Кнопка "Выход"
+        exit_button = QPushButton(self)
+        exit_button.move(430, 20)
+        exit_button.resize(50, 50)
+        exit_button.clicked.connect(self.confirm_close)
+        exit_button.setStyleSheet("""
+        QPushButton {
+            background-image: url('закрыть.png');
+            border: none;
+            }
+        """)
+
+        # Устанавливаем стили для кнопок
+        buttonreg.setStyleSheet("""
+                    QPushButton {
+                        background-image: url('фон 2.jpg');
+                        background-repeat: no-repeat; 
+                        border-radius: 10px;
+                        background-position: center; 
+                        font-size: 20px; 
+                        font-weight: bold; 
+                        color: black; 
+                    }
+                    QPushButton:hover {
+                        background-color: #45a049; 
+                        border: 2px solid #45a049;
+                    }
+                    QPushButton:pressed {
+                        background-color: #3e8e41; /* Цвет фона при нажатии */
+                        border: 2px solid #3e8e41;
+                    }
+                """)
+        buttontrance.move(125, 500)
+        buttontrance.resize(250, 70)
+
+        buttontrance.setStyleSheet("""
+                    QPushButton {
+                        background-image: url('фон 2.jpg');
+                        background-repeat: no-repeat; 
+                        border-radius: 10px;
+                        background-position: center; 
+                        font-size: 20px; 
+                        font-weight: bold; 
+                        color: black; 
+                    }
+                    QPushButton:hover {
+                        background-color: #45a049; 
+                        border: 2px solid #45a049;
+                    }
+                    QPushButton:pressed {
+                        background-color: #3e8e41; /* Цвет фона при нажатии */
+                        border: 2px solid #3e8e41;
+                    }
+                """)
+
+        buttonback.setFixedSize(50, 50)
+        buttonback.setStyleSheet("""
+                    QPushButton {
+                        background-image: url('стрелка.png');
+                        border-radius: 25px;
+
+                    }
+                    QPushButton:pressed {
+                        background-color: #00E1FF; 
+                    }
+                """)
+
+        buttonback.move(20, 20)  # Позиция кнопки "назад"
+        buttonback.clicked.connect(self.go_back)
+
+        buttonreg.clicked.connect(self.open_registration)
+        buttontrance.clicked.connect(self.validate_login)
+
+        self.error_label = QLabel("", self)
+        self.error_label.setStyleSheet("color: red; font-size: 16px;")
+        self.error_label.move(25, 600)
+        self.error_label.hide()
+
+    # Метод для возврата на предыдущее окно
+    def go_back(self):
+        self.close()
+        self.myapp = MyApp()
+        self.myapp.show()
+
+    # Метод для открытия окна регистрации
+    def open_registration(self):
+        self.close()
+        self.registration = Registration()
+        self.registration.show()
+
+    # Метод для показа/скрытия пароля
+    def toggle_password_visibility(self, password_input):
+        if password_input.echoMode() == QLineEdit.Password:
+            password_input.setEchoMode(QLineEdit.Normal)
+        else:
+            password_input.setEchoMode(QLineEdit.Password)
+
+    # Метод для подтверждения выхода
+    def confirm_close(self):
+        reply = QMessageBox.question(self, 'Подтверждение', 'Вы уверены, что хотите выйти?',
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            self.close_app()
+
+    # Метод для закрытия приложения
+    def close_app(self):
+        QApplication.quit()
+
+    # Метод для валидации входа
+    def validate_login(self):
+        login = self.login_input.text()
+        password = self.password_input.text()
+
+        conn, cursor = connect_db()
+        cursor.execute("SELECT * FROM users WHERE login=? AND password=?", (login, password))
+        user = cursor.fetchone()
+        conn.close()
+
+        if user:
+            self.error_label.hide()
+            self.open_game_window(user[0])
+        else:
+            self.error_label.setText("Неверные данные: попробуйте снова или зарегистрируйтесь")
+            self.error_label.show()
+
+    # Метод для открытия окна игры
+    def open_game_window(self, user_id):
+        self.close()
+        self.game_window = GameWindow(user_id)
+        self.game_window.show()
+
+# Окно регистрации
+class Registration(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.initUI()
+
+    def initUI(self):
+        self.setGeometry(800, 100, 490, 872)
+        self.setFixedSize(490, 872)
+        self.setWindowTitle('Регистрация')
+
+        # Устанавливаем фоновое изображение
+        pixmap = QPixmap('фон.jpg')
+        palette = QPalette()
+        palette.setBrush(QPalette.Window, QBrush(pixmap))
+        self.setPalette(palette)
+
+        self.button_area = QWidget(self)
+
+        buttonback = QPushButton(self)
+        buttonreg = QPushButton('зарегистрироваться', self)
+
+        buttonreg.move(125, 700)
+        buttonreg.resize(250, 70)
+
+        buttonback.setFixedSize(50, 50)
+        buttonback.setStyleSheet("""
+                    QPushButton {
+                        background-image: url('стрелка.png');
+                        border-radius: 25px;
+
+                    }
+                    QPushButton:pressed {
+                        background-color: #00E1FF; 
+                    }
+                """)
+
+        buttonback.move(20, 20)
+        buttonback.clicked.connect(self.go_back)
+
+        # Кнопка для показа/скрытия пароля
+        show_password_button = QPushButton(self)
+        show_password_button.setStyleSheet("font-size: 14px; padding: 5px;")
+        show_password_button.move(360, 205)
+        show_password_button.resize(34, 30)
+        show_password_button.clicked.connect(lambda: self.toggle_password_visibility(self.password_input))
+        show_password_button.setStyleSheet("""
+                    QPushButton {
+                        background-image: url('пароль.png');
+                        border: none;
+                    }
+                    """)
+
+        # Создаем метки и поля ввода для регистрации
+        label1 = QLabel('Введите логин', self)
+        label2 = QLabel('Введите пароль', self)
+        label3 = QLabel('Введите почту', self)
+        label4 = QLabel('Выберите пол', self)
+
+        label1.move(155,30)
+        label1.setFixedSize(200, 50)
+        label1.setStyleSheet("""
+            QLabel {
+                background-color: #ffffff; 
+                border: 2px solid #4CAF50; 
+                font-size: 22px; 
+                color: black;
+                padding-left: 20px; 
+                padding-right: 20px; 
+            }
+        """)
+
+        label2.move(155,140)
+        label2.setFixedSize(200, 50)
+        label2.setStyleSheet("""
+            QLabel {
+                background-color: #ffffff; 
+                border: 2px solid #4CAF50; 
+                padding: 10px; 
+                font-size: 22px; 
+                color: black;
+                padding: 10px
+            }
+        """)
+
+        label3.move(155,250)
+        label3.setFixedSize(200, 50)
+        label3.setStyleSheet("""
+            QLabel {
+                background-color: #ffffff; 
+                border: 2px solid #4CAF50; 
+                font-size: 22px; 
+                color: black;
+                padding-left: 20px; 
+                padding-right: 20px; 
+            }
+        """)
+
+        label4.move(155, 360)
+        label4.setFixedSize(200, 50)
+        label4.setStyleSheet("""
+            QLabel {
+                background-color: #ffffff; 
+                border: 2px solid #4CAF50; 
+                font-size: 22px; 
+                color: black;
+                padding-left: 20px; 
+                padding-right: 20px; 
+            }
+        """)
+
+        self.login_input = QLineEdit(self)
+        self.login_input.setPlaceholderText("")
+        self.login_input.setStyleSheet("font-size: 20px; padding: 5px;")
+        self.login_input.move(155, 95)
+        self.login_input.resize(200, 30)
+        self.login_input.setStyleSheet("""
+            QLineEdit {
+                background-image: url('Or.png')
+            }
+            """)
+
+        self.password_input = QLineEdit(self)
+        self.password_input.setPlaceholderText("")
+        self.password_input.setStyleSheet("font-size: 20px; padding: 5px;")
+        self.password_input.setEchoMode(QLineEdit.Password)
+        self.password_input.move(155, 205)
+        self.password_input.resize(200, 30)
+        self.password_input.setStyleSheet("""
+            QLineEdit {
+                background-image: url('Or.png')
+            }
+            """)
+
+        self.mail_input = QLineEdit(self)
+        self.mail_input.setPlaceholderText("")
+        self.mail_input.setStyleSheet("font-size: 20px; padding: 5px;")
+        self.mail_input.move(155, 315)
+        self.mail_input.resize(200, 30)
+        self.mail_input.setStyleSheet("""
+                    QLineEdit {
+                        background-image: url('Or.png')
+                    }
+                    """)
+
+        # Создаем радиокнопки для выбора пола
+        gender_layout = QHBoxLayout()
+        self.male_radio = QRadioButton("Мужской", self)
+        self.female_radio = QRadioButton("Женский", self)
+        gender_layout.addWidget(self.male_radio)
+        gender_layout.addWidget(self.female_radio)
+
+        gender_widget = QWidget(self)
+        gender_widget.setLayout(gender_layout)
+        gender_widget.move(155, 420)
+
+        self.error_label = QLabel("", self)
+        self.error_label.setStyleSheet("color: red; font-size: 16px;")
+        self.error_label.move(25, 780)
+        self.error_label.setFixedSize(400,50)
+        self.error_label.hide()
+
+        # Кнопка "Выход"
+        exit_button = QPushButton(self)
+        exit_button.move(430, 20)
+        exit_button.resize(50, 50)
+        exit_button.clicked.connect(self.confirm_close)
+        exit_button.setStyleSheet("""
+        QPushButton {
+            background-image: url('закрыть.png');
+            border: none;
+            }
+        """)
+
+        buttonreg.setStyleSheet("""
+        QPushButton {
+            background-image: url('фон 2.jpg');
+            background-repeat: no-repeat; 
+            border-radius: 10px;
+            background-position: center; 
+            font-size: 20px; 
+            font-weight: bold; 
+            color: black; 
+            }
+            QPushButton:hover {
+            background-color: #45a049; 
+            border: 2px solid #45a049;
+            }
+            QPushButton:pressed {
+            background-color: #3e8e41; /* Цвет фона при нажатии */
+            border: 2px solid #3e8e41;
+            }
+        """)
+
+        buttonreg.clicked.connect(self.validate_registration)
+
+    # Метод для возврата на предыдущее окно
+    def go_back(self):
+        self.close()
+        self.reg = Reg()
+        self.reg.show()
+
+    # Метод для подтверждения выхода
+    def confirm_close(self):
+        reply = QMessageBox.question(self, 'Подтверждение', 'Вы уверены, что хотите выйти?',
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            self.close_app()
+
+    # Метод для закрытия приложения
+    def close_app(self):
+        QApplication.quit()
+
+    # Метод для показа/скрытия пароля
+    def toggle_password_visibility(self, password_input):
+        if password_input.echoMode() == QLineEdit.Password:
+            password_input.setEchoMode(QLineEdit.Normal)
+        else:
+            password_input.setEchoMode(QLineEdit.Password)
+
+    # Метод для валидации регистрации
+    def validate_registration(self):
+        if (not self.login_input.text() or
+            not self.password_input.text() or
+            not self.mail_input.text() or
+            (not self.male_radio.isChecked() and not self.female_radio.isChecked())):
+            self.error_label.setText("Заполните все поля")
+            self.error_label.show()  # Показываем метку с ошибкой
+        elif not self.is_valid_email(self.mail_input.text()):
+            self.error_label.setText("Неверный формат почты")
+            self.error_label.show()
+        elif len(self.login_input.text()) < 3:
+            self.error_label.setText("Логин должен быть длиннее 3 символов")
+            self.error_label.show()
+        elif len(self.password_input.text()) < 6:
+            self.error_label.setText("Пароль должен быть длиннее 6 символов")
+            self.error_label.show()
+        else:
+            self.error_label.hide()
+            gender = "Мужской" if self.male_radio.isChecked() else "Женский"
+            user_id = self.save_user(self.login_input.text(), self.password_input.text(), self.mail_input.text(), gender)
+            print("Регистрация успешна!")
+            self.open_game_window(user_id)
+
+    # Метод для сохранения пользователя в базе данных
+    def save_user(self, login, password, email, gender):
+        conn, cursor = connect_db()
+        cursor.execute("INSERT INTO users (login, password, email, gender) VALUES (?, ?, ?, ?)",
+                       (login, password, email, gender))
+        user_id = cursor.lastrowid
+        cursor.execute("INSERT INTO game_stats (user_id) VALUES (?)", (user_id,))
+        conn.commit()
+        conn.close()
+        return user_id
+
+    # Метод для проверки валидности email
+    def is_valid_email(self, email):
+        pattern = r'^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$'
+        return re.match(pattern, email) is not None
+
+    # Метод для открытия окна игры
+    def open_game_window(self, user_id):
+        self.close()
+        self.game_window = GameWindow(user_id)
+        self.game_window.show()
+
+# Окно игры
+class GameWindow(QWidget):
+    def __init__(self, user_id):
+        super().__init__()
+        self.user_id = user_id
+        self.initUI()
+        self.player_choices = []
+        self.stats = {"wins": 0, "losses": 0, "ties": 0}
+
+        self.initialize_files()
+
+    # Метод для инициализации файлов статистики
+    def initialize_files(self):
+        if not os.path.exists("победа.txt"):
+            with open("победа.txt", "w", encoding="utf-8") as file:
+                file.write("0")
+        if not os.path.exists("поражение.txt"):
+            with open("поражение.txt", "w", encoding="utf-8") as file:
+                file.write("0")
+        if not os.path.exists("ничья.txt"):
+            with open("ничья.txt", "w", encoding="utf-8") as file:
+                file.write("0")
+
+    def initUI(self):
+        self.setWindowTitle('Игра')
+        self.setGeometry(800, 100, 490, 872)
+        self.setFixedSize(490, 872)
+
+        # Устанавливаем фоновое изображение
+        pixmap = QPixmap('фон.jpg')
+        palette = QPalette()
+        palette.setBrush(QPalette.Window, QBrush(pixmap))
+        self.setPalette(palette)
+
+        self.username = self.get_username()
+        self.username_label = QLabel(f"Играет: {self.username}", self)
+        self.username_label.setStyleSheet("""
+            QLabel {
+                font-size: 18px; 
+                color: white;
+            }
+        """)
+        self.username_label.move(250, 30)
+        self.username_label.resize(450, 50)
+
+        # Кнопка "Выход"
+        exit_button = QPushButton(self)
+        exit_button.move(430, 20)
+        exit_button.resize(50, 50)
+        exit_button.clicked.connect(self.confirm_close)
+        exit_button.setStyleSheet("""
+        QPushButton {
+            background-image: url('закрыть.png');
+            border: none;
+            }
+        """)
+
+        # Кнопка "Назад"
+        buttonback = QPushButton(self)
+        buttonback.setFixedSize(50, 50)
+        buttonback.setStyleSheet("""
+        QPushButton {
+            background-image: url('выйти.png');
+            border: none;
+            }
+            QPushButton:pressed {
+            background-color: #00E1FF; 
+            }
+        """)
+        buttonback.move(20, 20)
+        buttonback.clicked.connect(self.go_back)
+
+        # Кнопка "Обновить"
+        buttonrest = QPushButton(self)
+        buttonrest.setFixedSize(50, 50)
+        buttonrest.setStyleSheet("""
+        QPushButton {
+            background-image: url('обновить.png');
+            border-radius: 25px;
+
+            }
+            QPushButton:pressed {
+            background-color: #00E1FF; 
+            }
+        """)
+        buttonrest.move(90, 20)
+        buttonrest.clicked.connect(self.refresh_window)
+
+        # Кнопка "Статистика"
+        stats_button = QPushButton("", self)
+        stats_button.setFixedSize(50, 50)
+        stats_button.move(20, 800)
+        stats_button.clicked.connect(self.open_statistics)
+        stats_button.setStyleSheet("""
+        QPushButton {
+            background-image: url('статистика.png');
+            border: none;
+            font-size: 18px;
+            color: white;
+        }
+        QPushButton:pressed {
+            background-color: #3e8e41;
+        }
+        """)
+
+        # Метки для отображения выбора игрока и компьютера
+        self.player_choice_label = QLabel(self)
+        self.player_choice_label.setFixedSize(100, 100)
+        self.player_choice_label.move(100, 350)
+        self.player_choice_label.setStyleSheet("border: none;")
+
+        self.computer_choice_label = QLabel(self)
+        self.computer_choice_label.setFixedSize(100, 100)
+        self.computer_choice_label.move(300, 350)
+        self.computer_choice_label.setStyleSheet("border: none;")
+
+        self.player_choice_text = QLabel("Выбор игрока", self)
+        self.player_choice_text.setStyleSheet("color: white; font-size: 18px;")
+        self.player_choice_text.move(90, 460)
+        self.player_choice_text.hide()
+
+        self.computer_choice_text = QLabel("Выбор компьютера", self)
+        self.computer_choice_text.setStyleSheet("color: white; font-size: 18px;")
+        self.computer_choice_text.move(270, 460)
+        self.computer_choice_text.hide()
+
+        # Кнопки для выбора "Камень", "Ножницы", "Бумага"
+        rock_button = QPushButton(self)
+        rock_button.setFixedSize(50, 50)
+        rock_button.move(20, 600)
+        rock_button.setStyleSheet("""
+        QPushButton {
+            background-image: url('камень.png');
+            border: none;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+        QPushButton:hover {
+            border: 2px solid #01E0FF;
+        }
+        QPushButton:pressed {
+            background-color: #01E0FF;
+        }
+        """)
+        rock_button.clicked.connect(lambda: self.handle_choice("Камень"))
+
+        scissors_button = QPushButton(self)
+        scissors_button.setFixedSize(50, 50)
+        scissors_button.move(420, 600)
+        scissors_button.setStyleSheet("""
+        QPushButton {
+            background-image: url('ножницы.png');
+            border: none;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+        QPushButton:hover {
+            border: 2px solid #01E0FF;
+        }
+        QPushButton:pressed {
+            background-color: #01E0FF;
+        }
+        """)
+        scissors_button.clicked.connect(lambda: self.handle_choice("Ножницы"))
+
+        paper_button = QPushButton(self)
+        paper_button.setFixedSize(50, 50)
+        paper_button.move(220, 600)
+        paper_button.setStyleSheet("""
+        QPushButton {
+            background-image: url('бумага.png');
+            border: none;
+            background-repeat: no-repeat;
+            background-position: center;
+        }
+        QPushButton:hover {
+            border: 2px solid #01E0FF;
+        }
+        QPushButton:pressed {
+            background-color: #01E0FF;
+        }
+        """)
+        paper_button.clicked.connect(lambda: self.handle_choice("Бумага"))
+
+        self.result_label = QLabel("", self)
+        self.result_label.setStyleSheet("color: white; font-size: 22px;")
+        self.result_label.move(140, 250)
+        self.result_label.setFixedSize(400, 50)
+
+    # Метод для подтверждения выхода
+    def confirm_close(self):
+        reply = QMessageBox.question(self, 'Подтверждение', 'Вы уверены, что хотите выйти?',
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            self.close_app()
+
+    # Метод для получения имени пользователя
+    def get_username(self):
+        conn, cursor = connect_db()
+        cursor.execute("SELECT login FROM users WHERE id=?", (self.user_id,))
+        result = cursor.fetchone()
+        conn.close()
+        return result[0] if result else "Игрок"
+
+    # Метод для закрытия приложения
+    def close_app(self):
+        QApplication.quit()
+
+    # Метод для возврата на предыдущее окно
+    def go_back(self):
+        reply = QMessageBox.question(self, 'Подтверждение', 'Вы уверены, что хотите выйти из аккаунта?',
+                                     QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply == QMessageBox.Yes:
+            self.go_back2()
+
+    def go_back2(self):
+        self.close()
+        self.myapp = MyApp()
+        self.myapp.show()
+
+    # Метод для обновления окна
+    def refresh_window(self):
+        self.close()
+        self.new_window = GameWindow(self.user_id)
+        self.new_window.show()
+
+    # Метод для открытия окна статистики
+    def open_statistics(self):
+        self.statistics_window = StatisticsWindow(self.stats)
+        self.statistics_window.show()
+
+    # Метод для обработки выбора игрока
+    def handle_choice(self, player_choice):
+        choices = ["Камень", "Ножницы", "Бумага"]
+        computer_choice = random.choice(choices)
+
+        self.player_choices.append(player_choice)
+
+        if len(self.player_choices) >= 3 and len(set(self.player_choices[-3:])) == 1:
+            # Выбираем контраргумент
+            if player_choice == "Камень":
+                computer_choice = "Бумага"
+            elif player_choice == "Ножницы":
+                computer_choice = "Камень"
+            elif player_choice == "Бумага":
+                computer_choice = "Ножницы"
+
+        if player_choice == computer_choice:
+            result = "          Ничья!"
+            self.stats["ties"] += 1
+            self.update_file("ничья.txt")
+        elif (player_choice == "Камень" and computer_choice == "Ножницы") or \
+             (player_choice == "Ножницы" and computer_choice == "Бумага") or \
+             (player_choice == "Бумага" and computer_choice == "Камень"):
+            result = "     Вы победили!"
+            self.stats["wins"] += 1
+            self.update_file("победа.txt")
+        else:
+            result = "Компьютер победил!"
+            self.stats["losses"] += 1
+            self.update_file("поражение.txt")
+
+        self.update_game_stats()
+
+        self.player_choice_label.setPixmap(QPixmap(f"{player_choice.lower()}.png").scaled(100, 100))
+
+        self.computer_choice_label.setPixmap(QPixmap(f"{computer_choice.lower()}.png").scaled(100, 100))
+
+        self.player_choice_text.show()
+        self.computer_choice_text.show()
+
+        self.result_label.setText(f"{result}")
+
+    # Метод для обновления статистики игр
+    def update_game_stats(self):
+        conn, cursor = connect_db()
+        cursor.execute("""
+            UPDATE game_stats
+            SET wins = wins + ?, losses = losses + ?, ties = ties + ?
+            WHERE user_id = ?
+        """, (self.stats["wins"], self.stats["losses"], self.stats["ties"], self.user_id))
+        conn.commit()
+        conn.close()
+
+    # Метод для обновления файла статистики
+    def update_file(self, filename):
+        with open(filename, "r", encoding="utf-8") as file:
+            current_value = int(file.read())
+        with open(filename, "w", encoding="utf-8") as file:
+            file.write(str(current_value + 1))
+
+# Окно статистики
+class StatisticsWindow(QWidget):
+    def __init__(self, stats):
+        super().__init__()
+        self.stats = stats
+        self.initUI()
+
+    def initUI(self):
+        self.setWindowTitle('Статистика')
+        self.setGeometry(800, 100, 490, 872)
+        self.setFixedSize(490, 872)
+
+        # Устанавливаем фоновое изображение
+        pixmap = QPixmap('фон.jpg')
+        palette = QPalette()
+        palette.setBrush(QPalette.Window, QBrush(pixmap))
+        self.setPalette(palette)
+
+        # Кнопка "Назад"
+        buttonback = QPushButton(self)
+        buttonback.setFixedSize(50, 50)
+        buttonback.setStyleSheet("""
+        QPushButton {
+            background-image: url('стрелка.png');
+            border-radius: 25px;
+
+            }
+            QPushButton:pressed {
+            background-color: #00E1FF; 
+            }
+        """)
+        buttonback.move(20, 20)
+        buttonback.clicked.connect(self.go_back)
+
+        # Метки для отображения статистики
+        stat_label = QLabel(f"Статистика текущей игровой сессии:", self)
+        stat_label.setStyleSheet("""
+                        background-color: #ffffff; 
+                        border: 2px solid #4CAF50; 
+                        font-size: 22px; 
+                        color: black;
+                        padding-left: 20px; 
+                        padding-right: 20px; 
+        """)
+        stat_label.move(45, 150)
+
+        stat_over_label = QLabel(f"Общая статистика игр пользовотелей:", self)
+        stat_over_label.setStyleSheet("""
+                        background-color: #ffffff; 
+                        border: 2px solid #4CAF50; 
+                        font-size: 22px; 
+                        color: black;
+                        padding-left: 20px; 
+                        padding-right: 20px; 
+        """)
+        stat_over_label.move(25, 400)
+
+        wins_label = QLabel(f"Победы: {self.stats['wins']}", self)
+        wins_label.setStyleSheet("""
+                        background-color: #ffffff; 
+                        border: 2px solid #4CAF50; 
+                        font-size: 22px; 
+                        color: black;
+                        padding-left: 20px; 
+                        padding-right: 20px; 
+        """)
+        wins_label.move(175, 200)
+
+        losses_label = QLabel(f"Поражения: {self.stats['losses']}", self)
+        losses_label.setStyleSheet("""
+                        background-color: #ffffff; 
+                        border: 2px solid #4CAF50; 
+                        font-size: 22px; 
+                        color: black;
+                        padding-left: 20px; 
+                        padding-right: 20px; 
+        """)
+        losses_label.move(150, 250)
+
+        ties_label = QLabel(f"Ничьи: {self.stats['ties']}", self)
+        ties_label.setStyleSheet("""
+                        background-color: #ffffff; 
+                        border: 2px solid #4CAF50; 
+                        font-size: 22px; 
+                        color: black;
+                        padding-left: 20px; 
+                        padding-right: 20px; 
+        """)
+        ties_label.move(180, 300)
+
+        wins_over_value = self.read_file_value("победа.txt")
+        wins_over_label = QLabel(f"Победы: {wins_over_value}", self)
+        wins_over_label.setStyleSheet("""
+                        background-color: #ffffff; 
+                        border: 2px solid #4CAF50; 
+                        font-size: 22px; 
+                        color: black;
+                        padding-left: 20px; 
+                        padding-right: 20px; 
+        """)
+        wins_over_label.move(175, 450)
+
+        losses_over_value = self.read_file_value("поражение.txt")
+        losses_over_label = QLabel(f"Поражения: {losses_over_value}", self)
+        losses_over_label.setStyleSheet("""
+                        background-color: #ffffff; 
+                        border: 2px solid #4CAF50; 
+                        font-size: 22px; 
+                        color: black;
+                        padding-left: 20px; 
+                        padding-right: 20px; 
+        """)
+        losses_over_label.move(150, 500)
+
+        ties_over_value = self.read_file_value("ничья.txt")
+        ties_over_label = QLabel(f"Ничьи: {ties_over_value}", self)
+        ties_over_label.setStyleSheet("""
+                        background-color: #ffffff; 
+                        border: 2px solid #4CAF50; 
+                        font-size: 22px; 
+                        color: black;
+                        padding-left: 20px; 
+                        padding-right: 20px; 
+        """)
+        ties_over_label.move(180, 550)
+
+    # Метод для возврата на предыдущее окно
+    def go_back(self):
+        self.close()
+
+    # Метод для чтения значения из файла
+    def read_file_value(self, filename):
+        try:
+            with open(filename, "r", encoding="utf-8") as file:
+                return int(file.read())
+        except FileNotFoundError:
+            return 0
+
+# Точка входа в приложение
+if __name__ == '__main__':
+    app = QApplication(sys.argv)
+    ex = MyApp()
+    sys.exit(app.exec_())
